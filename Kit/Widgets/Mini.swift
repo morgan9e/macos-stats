@@ -15,6 +15,7 @@ public class Mini: WidgetWrapper {
     private var labelState: Bool = true
     private var colorState: SColor = .monochrome
     private var alignmentState: String = "left"
+    private var fontSizeState: CGFloat = 14
     
     private var colors: [SColor] = SColor.allCases
     
@@ -82,6 +83,7 @@ public class Mini: WidgetWrapper {
             self.colorState = SColor.fromString(Store.shared.string(key: "\(self.title)_\(self.type.rawValue)_color", defaultValue: self.colorState.key))
             self.labelState = Store.shared.bool(key: "\(self.title)_\(self.type.rawValue)_label", defaultValue: self.labelState)
             self.alignmentState = Store.shared.string(key: "\(self.title)_\(self.type.rawValue)_alignment", defaultValue: self.alignmentState)
+            self.fontSizeState = CGFloat(Store.shared.int(key: "\(self.title)_\(self.type.rawValue)_fontSize", defaultValue: Int(self.fontSizeState)))
         }
     }
     
@@ -105,7 +107,7 @@ public class Mini: WidgetWrapper {
             suffix = self._suffix
         }
         
-        let valueSize: CGFloat = self.labelState ? 12 : 14
+        let valueSize: CGFloat = self.labelState ? 12 : self.fontSizeState
         var origin: CGPoint = CGPoint(x: Constants.Widget.margin.x, y: (Constants.Widget.height-valueSize)/2)
         let style = NSMutableParagraphStyle()
         style.alignment = self.labelState ? self.alignment : .center
@@ -140,10 +142,10 @@ public class Mini: WidgetWrapper {
             NSAttributedString.Key.foregroundColor: color,
             NSAttributedString.Key.paragraphStyle: style
         ]
-        let rect = CGRect(x: origin.x, y: origin.y, width: self.width - (Constants.Widget.margin.x*2), height: valueSize+1)
         let str = NSAttributedString.init(string: "\(Int(value.rounded(toPlaces: 2) * 100))\(suffix)", attributes: stringAttributes)
+        let rect = CGRect(x: origin.x, y: origin.y, width: self.width - (Constants.Widget.margin.x*2), height: valueSize+1)
         str.draw(with: rect)
-        
+
         self.setWidth(width)
     }
     
@@ -193,10 +195,12 @@ public class Mini: WidgetWrapper {
     
     // MARK: - Settings
     
+    private var sectionView: PreferencesSection?
+
     public override func settings() -> NSView {
         let view = SettingsContainerView()
-        
-        view.addArrangedSubview(PreferencesSection([
+
+        let section = PreferencesSection([
             PreferencesRow(localizedString("Label"), component: switchView(
                 action: #selector(self.toggleLabel),
                 state: self.labelState
@@ -210,9 +214,19 @@ public class Mini: WidgetWrapper {
                 action: #selector(self.toggleAlignment),
                 items: Alignments,
                 selected: self.alignmentState
+            )),
+            PreferencesRow(localizedString("Font size"), component: sliderView(
+                action: #selector(self.changeFontSize),
+                value: Int(self.fontSizeState),
+                initialValue: "\(Int(self.fontSizeState)) pt",
+                min: 8,
+                max: 20
             ))
-        ]))
-        
+        ])
+        self.sectionView = section
+        section.setRowVisibility(3, newState: !self.labelState)
+        view.addArrangedSubview(section)
+
         return view
     }
     
@@ -228,9 +242,20 @@ public class Mini: WidgetWrapper {
     @objc private func toggleLabel(_ sender: NSControl) {
         self.labelState = controlState(sender)
         Store.shared.set(key: "\(self.title)_\(self.type.rawValue)_label", value: self.labelState)
+        self.sectionView?.setRowVisibility(3, newState: !self.labelState)
         self.display()
     }
     
+    @objc private func changeFontSize(_ sender: NSSlider) {
+        let value = Int(sender.intValue)
+        self.fontSizeState = CGFloat(value)
+        Store.shared.set(key: "\(self.title)_\(self.type.rawValue)_fontSize", value: value)
+        if let valueField = sender.superview?.subviews.last as? NSTextField {
+            valueField.stringValue = "\(value) pt"
+        }
+        self.display()
+    }
+
     @objc private func toggleAlignment(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String else { return }
         if let newAlignment = Alignments.first(where: { $0.key == key }) {

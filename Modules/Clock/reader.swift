@@ -59,7 +59,6 @@ internal class ClockReader: Reader<Date> {
             guard let serverDate = self.requestTime(server: server) else { return }
             let newOffset = serverDate.timeIntervalSince(Date())
             self._offset = newOffset
-            self.alignOffset = newOffset
         }
     }
     
